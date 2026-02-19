@@ -1,0 +1,247 @@
+# GitLab CI/CD Configuration
+# Project: {{ project_name }}
+# Version: {{ project_version }}
+# App Type: {{ app }}
+
+stages:
+  - build
+  - test
+  - lint
+  - security
+  - deploy
+
+variables:
+  PROJECT_NAME: "{{ project_name }}"
+  PROJECT_VERSION: "{{ project_version }}"
+  APP_TYPE: "{{ app }}"
+  CI_DEBUG_TRACE: "false"
+
+# Build Stage
+{% if build.type == 'DockerBuild' %}
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo "Building Docker image for {{ project_name }}:{{ '${CI_COMMIT_SHA}' }}"
+    - docker build -f {{ build.dockerfile_name }} {{ build.required_arguments | default('') }} -t {{ project_name }}:{{ '${CI_COMMIT_SHA}' }} -t {{ project_name }}:latest .
+    {% if additional and additional.artifact_manager %}
+    - echo "{{ '${CI_JOB_TOKEN}' }}" | docker login -u {{ additional.artifact_manager.username }} --password-stdin {{ additional.artifact_manager.host }}
+    - docker tag {{ project_name }}:latest {{ additional.artifact_manager.host }}/{{ additional.artifact_manager.image_name }}
+    - docker push {{ additional.artifact_manager.host }}/{{ additional.artifact_manager.image_name }}
+    {% endif %}
+  artifacts:
+    reports:
+      dotenv: build.env
+  only:
+    - merge_requests
+    - main
+    - develop
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+{% else %}
+build:bare:
+  stage: build
+  image: {{ app | lower }}-builder:latest
+  cache:
+    paths:
+      - .cache/
+  script:
+    - echo "Building {{ app }} project with {{ build.builder_tool }} ({{ build.language_version }})"
+    - {{ build.full_command }}
+  artifacts:
+    paths:
+      - dist/
+      - build/
+    expire_in: 1 day
+  only:
+    - merge_requests
+    - main
+    - develop
+  retry:
+    max: 2
+{% endif %}
+
+# Test Stage
+{% if additional and additional.test %}
+test:unit:
+  stage: test
+  {% if build.type == 'DockerBuild' %}
+  image: {{ build.required_base_image }}
+  {% else %}
+  image: {{ app | lower }}:{{ build.language_version }}
+  {% endif %}
+  script:
+    - echo "Running unit tests..."
+    - {{ additional.test.command }}
+  artifacts:
+    reports:
+      junit:
+        - test-results.xml
+        - junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage/
+    expire_in: 30 days
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: false
+{% else %}
+test:skip:
+  stage: test
+  script:
+    - echo "No tests configured"
+  only:
+    - merge_requests
+    - main
+    - develop
+{% endif %}
+
+# Lint Stage
+{% if additional and additional.lint %}
+lint:code:
+  stage: lint
+  {% if build.type == 'DockerBuild' %}
+  image: {{ build.required_base_image }}
+  {% else %}
+  image: {{ app | lower }}:{{ build.language_version }}
+  {% endif %}
+  script:
+    - echo "Running code quality checks..."
+    - {{ additional.lint.command }}
+  artifacts:
+    reports:
+      codequality:
+        - gl-code-quality-report.json
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: true
+{% else %}
+lint:skip:
+  stage: lint
+  script:
+    - echo "No linting configured"
+  only:
+    - merge_requests
+{% endif %}
+
+# Security Stage
+{% if additional and additional.trivy %}
+security:scan:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - echo "Running Trivy security scan..."
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL {{ project_name }}:latest
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+  allow_failure: true
+{% else %}
+security:skip:
+  stage: security
+  script:
+    - echo "Trivy scan disabled"
+{% endif %}
+
+# Deploy Stage
+{% if deploy.type == 'DockerDeploy' %}
+deploy:docker_compose:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  environment:
+    name: {{ deploy.yaml_path | replace('/', '-') | default('staging') }}
+    url: http://{{ deploy.yaml_path | default('localhost') }}
+  script:
+    - echo "Deploying to Docker Compose..."
+    - apk add --no-cache docker-compose
+    - docker-compose -f {{ deploy.yaml_path }}/{{ deploy.yaml_name }} pull
+    - docker-compose -f {{ deploy.yaml_path }}/{{ deploy.yaml_name }} up -d{{ ' --remove-orphans' if deploy.graceful else '' }}
+    - echo "✓ Deployed to {{ deploy.yaml_path }}"
+  only:
+    - main
+    - develop
+  when: manual
+{% elif deploy.type == 'KubernetesDeploy' %}
+deploy:kubernetes:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  environment:
+    name: {{ deploy.namespace }}
+    kubernetes:
+      namespace: {{ deploy.namespace }}
+  script:
+    - echo "Deploying to Kubernetes ({{ deploy.namespace }})..."
+    - kubectl apply -f {{ deploy.yaml_name }} -n {{ deploy.namespace }}
+    {% if deploy.rolling_update %}
+    - kubectl rollout status deployment/{{ deploy.yaml_name | replace('.yaml', '') }} -n {{ deploy.namespace }} --timeout=5m
+    {% endif %}
+    - echo "✓ Deployed to Kubernetes"
+  only:
+    - main
+  when: manual
+{% else %}
+deploy:bare:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: {{ deploy.project_path | replace('/', '-') | default('production') }}
+  script:
+    - echo "Deploying {{ project_name }} v{{ project_version }} to {{ deploy.project_path }}"
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+    {% if deploy.reload_enabled %}
+    - ssh deploy@$DEPLOY_HOST "cd {{ deploy.project_path }} && systemctl restart {{ deploy.service_name }}"
+    {% endif %}
+    {% if deploy.commands_to_execute %}
+    - ssh deploy@$DEPLOY_HOST "{{ deploy.commands_to_execute }}"
+    {% else %}
+    - echo "⚠ Manual deployment needed to {{ deploy.project_path }}"
+    {% endif %}
+  only:
+    - main
+  when: manual
+{% endif %}
+
+# Success notification
+success:notification:
+  stage: deploy
+  image: curlimages/curl:latest
+  script:
+    - echo "✓ Pipeline completed successfully for {{ project_name }} v{{ project_version }}"
+  when: on_success
+  only:
+    - main
+    - develop
+
+# Failure notification
+failure:notification:
+  stage: deploy
+  image: curlimages/curl:latest
+  script:
+    - echo "✗ Pipeline failed for {{ project_name }}"
+  when: on_failure
+  only:
+    - main
+    - develop

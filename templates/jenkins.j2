@@ -1,0 +1,115 @@
+pipeline {
+    agent any
+
+    environment {
+        PROJECT_NAME = "{{ project_name }}"
+        PROJECT_VERSION = "{{ project_version }}"
+        APP_TYPE = "{{ app }}"
+    }
+
+    options {
+        timestamps()
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checking out code for {{ project_name }}"
+                // checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    echo "Building {{ app }} project..."
+                    {% if build.type == 'DockerBuild' %}
+                    echo "Using Docker image: {{ build.required_base_image }}"
+                    sh "docker build -f {{ build.dockerfile_name }} {{ build.required_arguments | default('') }} -t {{ project_name }}:${BUILD_NUMBER} ."
+                    {% else %}
+                    echo "Building with {{ build.builder_tool }} ({{ build.language_version }})"
+                    sh "{{ build.full_command }}"
+                    {% endif %}
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running tests for {{ project_name }}..."
+                {% if additional and additional.test %}
+                sh "{{ additional.test.command }}"
+                {% else %}
+                echo "No tests configured"
+                {% endif %}
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                echo "Running linting..."
+                {% if additional and additional.lint %}
+                sh "{{ additional.lint.command }}"
+                {% else %}
+                echo "No linting configured"
+                {% endif %}
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                echo "Running security scans..."
+                {% if additional and additional.trivy %}
+                sh "trivy image {{ project_name }}:${BUILD_NUMBER}"
+                {% else %}
+                echo "Trivy scan disabled"
+                {% endif %}
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    echo "Deploying {{ project_name }} v{{ project_version }}"
+                    {% if deploy.type == 'DockerDeploy' %}
+                    sh "docker-compose -f {{ deploy.yaml_path }}/{{ deploy.yaml_name }} pull"
+                    sh "docker-compose -f {{ deploy.yaml_path }}/{{ deploy.yaml_name }} up -d{{ ' --remove-orphans' if deploy.graceful else '' }}"
+                    echo "✓ Deployed to {{ deploy.yaml_path }}"
+                    {% elif deploy.type == 'KubernetesDeploy' %}
+                    sh "kubectl apply -f {{ deploy.yaml_name }} -n {{ deploy.namespace }}"
+                    {% if deploy.rolling_update %}
+                    sh "kubectl rollout status deployment/{{ deploy.yaml_name | replace('.yaml', '') }} -n {{ deploy.namespace }}"
+                    {% endif %}
+                    echo "✓ Deployed to Kubernetes ({{ deploy.namespace }})"
+                    {% else %}
+                    echo "Deploying to {{ deploy.project_path }} ({{ deploy.service_name }})"
+                    {% if deploy.reload_enabled %}
+                    sh "systemctl restart {{ deploy.service_name }}"
+                    {% endif %}
+                    {% if deploy.commands_to_execute %}
+                    sh "{{ deploy.commands_to_execute }}"
+                    {% else %}
+                    echo "⚠ Manual deployment needed to {{ deploy.project_path }}"
+                    {% endif %}
+                    {% endif %}
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+            echo "Pipeline completed for {{ project_name }}"
+        }
+        success {
+            echo "✓ Build successful!"
+        }
+        failure {
+            echo "✗ Build failed!"
+        }
+    }
+}
+
