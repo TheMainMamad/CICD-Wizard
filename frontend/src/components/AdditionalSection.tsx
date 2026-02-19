@@ -14,7 +14,7 @@ export default function AdditionalSection({ formData, onChange }: Props) {
       delete updated[feature as keyof typeof additional];
     } else {
       if (feature === 'trivy') {
-        updated.trivy = {};
+        updated.trivy = { enabled: true };
       } else if (feature === 'test') {
         updated.test = { command: 'npm test' };
       } else if (feature === 'lint') {

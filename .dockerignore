@@ -1,0 +1,12 @@
+frontend/
+infra/
+*.log
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.db
+.git
+.gitignore
+README.md
+LICENSE

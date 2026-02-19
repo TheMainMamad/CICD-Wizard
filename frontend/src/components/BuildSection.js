@@ -1,0 +1,21 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export default function BuildSection({ formData, onChange }) {
+    const isBare = 'full_command' in formData.build;
+    const handleBuildTypeChange = (type) => {
+        if (type === 'bare') {
+            onChange({
+                language_version: '3.12',
+                builder_tool: 'pip',
+                full_command: 'pip install -r requirements.txt'
+            });
+        }
+        else {
+            onChange({
+                required_base_image: 'python:3.12-slim',
+                required_arguments: '',
+                dockerfile_name: 'Dockerfile'
+            });
+        }
+    };
+    return (_jsxs("div", { className: "bg-white rounded-lg shadow p-6", children: [_jsx("h2", { className: "text-xl font-bold text-gray-900 mb-4", children: "Build Configuration" }), _jsxs("div", { className: "mb-6 flex gap-4", children: [_jsxs("label", { className: "flex items-center", children: [_jsx("input", { type: "radio", checked: isBare, onChange: () => handleBuildTypeChange('bare'), className: "mr-2" }), _jsx("span", { children: "Bare Build" })] }), _jsxs("label", { className: "flex items-center", children: [_jsx("input", { type: "radio", checked: !isBare, onChange: () => handleBuildTypeChange('docker'), className: "mr-2" }), _jsx("span", { children: "Docker Build" })] })] }), isBare ? (_jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Language Version" }), _jsx("input", { type: "text", value: formData.build.language_version, onChange: e => onChange({ ...formData.build, language_version: e.target.value }), placeholder: "e.g., 3.12", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Builder Tool" }), _jsx("input", { type: "text", value: formData.build.builder_tool, onChange: e => onChange({ ...formData.build, builder_tool: e.target.value }), placeholder: "e.g., pip, poetry, maven", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Build Command *" }), _jsx("input", { type: "text", value: formData.build.full_command, onChange: e => onChange({ ...formData.build, full_command: e.target.value }), placeholder: "e.g., pip install -r requirements.txt", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] })] })) : (_jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Base Image *" }), _jsx("input", { type: "text", value: formData.build.required_base_image, onChange: e => onChange({ ...formData.build, required_base_image: e.target.value }), placeholder: "e.g., python:3.12-slim", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Build Arguments" }), _jsx("input", { type: "text", value: formData.build.required_arguments || '', onChange: e => onChange({ ...formData.build, required_arguments: e.target.value }), placeholder: "e.g., --build-arg ENV=production", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "Dockerfile Name" }), _jsx("input", { type: "text", value: formData.build.dockerfile_name || 'Dockerfile', onChange: e => onChange({ ...formData.build, dockerfile_name: e.target.value }), placeholder: "Dockerfile", className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" })] })] }))] }));
+}

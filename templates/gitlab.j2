@@ -140,7 +140,7 @@ lint:skip:
 {% endif %}
 
 # Security Stage
-{% if additional and additional.trivy %}
+{% if additional and additional.trivy and additional.trivy.enabled %}
 security:scan:
   stage: security
   image: aquasec/trivy:latest

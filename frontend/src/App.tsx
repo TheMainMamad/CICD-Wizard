@@ -21,19 +21,19 @@ export default function App() {
   const [preview, setPreview] = useState<{ yaml: string; service: string; project: string; version: string } | null>(null);
 
   const handleProjectChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const handleBuildChange = (build: any) => {
-    setFormData(prev => ({ ...prev, build }));
+    setFormData((prev: any) => ({ ...prev, build }));
   };
 
   const handleDeployChange = (deploy: any) => {
-    setFormData(prev => ({ ...prev, deploy }));
+    setFormData((prev: any) => ({ ...prev, deploy }));
   };
 
   const handleAdditionalChange = (additional: any) => {
-    setFormData(prev => ({ ...prev, additional }));
+    setFormData((prev: any) => ({ ...prev, additional }));
   };
 
   const handlePreview = async () => {

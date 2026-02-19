@@ -1,0 +1,32 @@
+services:
+  node:
+    image: cicd-wizard-ui:latest
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - cicd-wizard-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      - VITE_API_URL=http://python:8000/api/v1
+
+  python:
+    image: cicd-wizard-api:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - cicd-wizard-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  cicd-wizard-network:
+    driver: bridge

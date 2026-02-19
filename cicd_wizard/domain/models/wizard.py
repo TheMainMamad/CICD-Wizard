@@ -59,6 +59,7 @@ class BareDeploy(BaseModel):
 
 class Trivy(BaseModel):
     """ Use Trivy """
+    enabled: bool = False
 
 
 class AutoTests(BaseModel):

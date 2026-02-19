@@ -1,6 +1,6 @@
 """API routes for CI/CD Wizard"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 
@@ -8,13 +8,15 @@ from cicd_wizard.domain.models.wizard import WizardData
 from cicd_wizard.application.generate_yaml import GenerateYAMLUseCase
 from cicd_wizard.service.generator.jenkins import GeneratorError
 
+from cicd_wizard.config.log import logger
+
 
 router = APIRouter(prefix="/api/v1", tags=["ci-cd"])
 generate_yaml_use_case = GenerateYAMLUseCase()
 
 
 @router.post("/generate/", response_model=dict)
-async def generate_service_yaml(wizard_data: WizardData) -> dict:
+async def generate_service_yaml(wizard_data: WizardData, request: Request) -> dict:
     """
     Generate YAML configuration for CI/CD pipeline
 
@@ -27,6 +29,7 @@ async def generate_service_yaml(wizard_data: WizardData) -> dict:
     Raises:
         HTTPException: If validation or generation fails
     """
+    logger().info(f"Received YAML generation request for service: {wizard_data.service.value} | IP: {request.client.host}")
     try:
         yaml_output = generate_yaml_use_case.execute(wizard_data)
         return {
@@ -54,7 +57,7 @@ async def generate_service_yaml(wizard_data: WizardData) -> dict:
 
 
 @router.post("/generate/download", response_class=PlainTextResponse)
-async def download_service_yaml(wizard_data: WizardData) -> str:
+async def download_service_yaml(wizard_data: WizardData, request: Request) -> str:
     """
     Generate and download YAML configuration as plain text file
 
@@ -67,6 +70,7 @@ async def download_service_yaml(wizard_data: WizardData) -> str:
     Raises:
         HTTPException: If validation or generation fails
     """
+    logger().info(f"Received YAML download request for service: {wizard_data.service.value} | IP: {request.client.host}")
     try:
         yaml_output = generate_yaml_use_case.execute(wizard_data)
         return yaml_output
@@ -85,4 +89,3 @@ async def download_service_yaml(wizard_data: WizardData) -> str:
             status_code=500,
             detail=f"Unexpected error: {str(e)}"
         )
-

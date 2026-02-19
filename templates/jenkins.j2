@@ -61,7 +61,7 @@ pipeline {
         stage('Security Scan') {
             steps {
                 echo "Running security scans..."
-                {% if additional and additional.trivy %}
+                {% if additional and additional.trivy and additional.trivy.enabled %}
                 sh "trivy image {{ project_name }}:${BUILD_NUMBER}"
                 {% else %}
                 echo "Trivy scan disabled"
