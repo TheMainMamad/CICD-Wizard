@@ -35,7 +35,7 @@ pydantic-core==2.41.5
     # via pydantic
 pydantic-settings==2.13.1
     # via cicd-wizard (pyproject.toml)
-python-dotenv==1.2.1
+python-dotenv==1.2.2
     # via
     #   pydantic-settings
     #   uvicorn
